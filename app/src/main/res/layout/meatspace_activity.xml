@@ -2,6 +2,7 @@
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
+    android:id="@+id/layout"
     tools:context="com.tec27.meatspace.MeatspaceActivity">
 
   <ListView
@@ -9,6 +10,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"/>
 
+    <SurfaceView
+        android:id="@+id/surfaceView"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true" />
     <EditText
         android:id="@+id/edit_message"
         android:layout_width="wrap_content"

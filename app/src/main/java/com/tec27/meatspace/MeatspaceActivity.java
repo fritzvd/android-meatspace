@@ -7,9 +7,12 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.GridLayout;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 import com.github.nkzawa.emitter.Emitter;
@@ -19,6 +22,8 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import android.view.ViewGroup.LayoutParams;
+import android.widget.FrameLayout;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -34,6 +39,7 @@ public class MeatspaceActivity extends Activity {
   private Socket socket;
   private Camera camera;
   private Context ctx;
+  private Preview preview;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +50,17 @@ public class MeatspaceActivity extends Activity {
     chatList = (ListView) findViewById(R.id.ChatList);
     messageAdapter = new MessageAdapter(this);
     chatList.setAdapter(messageAdapter);
+
+    preview = new Preview(this, (SurfaceView)findViewById(R.id.surfaceView));
+    preview.setLayoutParams(new GridLayout.LayoutParams(GridLayout.LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+    ((RelativeLayout) findViewById(R.id.layout)).addView(preview);
+    preview.setKeepScreenOn(true);
+    preview.setOnClickListener(new View.OnClickListener() {
+        @Override
+        public void onClick(View arg0) {
+            camera.takePicture(shutterCallback, rawCallback, jpegCallback);
+        }
+    });
 
     try {
       socket = IO.socket("http://192.168.1.22:3000");
@@ -109,7 +126,7 @@ public class MeatspaceActivity extends Activity {
               }
               camera.startPreview();
           } catch (RuntimeException e) {
-              Toast.makeText(ctx, "Whoopsie camera broke", Toast.LENGTH_LONG).show();
+              Toast.makeText(ctx, "Whoopsie camera brokesies", Toast.LENGTH_LONG).show();
           }
       }
   }
