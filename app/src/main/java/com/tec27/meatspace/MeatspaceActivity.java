@@ -2,10 +2,13 @@ package com.tec27.meatspace;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -30,11 +33,13 @@ import android.widget.FrameLayout;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 
 
 public class MeatspaceActivity extends Activity {
@@ -47,6 +52,7 @@ public class MeatspaceActivity extends Activity {
   private Context ctx;
   private Preview preview;
   private int photocount;
+  private ArrayList<String> vid;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -58,17 +64,9 @@ public class MeatspaceActivity extends Activity {
     messageAdapter = new MessageAdapter(this);
     chatList.setAdapter(messageAdapter);
 
-    photocount = 10;
+    photocount = 9;
     preview = new Preview(this, (SurfaceView)findViewById(R.id.surfaceView));
-//    preview.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     ((RelativeLayout) findViewById(R.id.layout)).addView(preview);
-//    preview.setKeepScreenOn(true);
-//    preview.setOnClickListener(new View.OnClickListener() {
-//        @Override
-//        public void onClick(View arg0) {
-//            camera.takePicture(shutterCallback, rawCallback, jpegCallback);
-//        }
-//    });
 
     try {
       socket = IO.socket("http://192.168.1.22:3000");
@@ -160,10 +158,12 @@ public class MeatspaceActivity extends Activity {
 
   Camera.ShutterCallback shutterCallback = new Camera.ShutterCallback() {
     public void onShutter() {
+      // does nothing at the moment but's necessary apparently?
     }
   };
   Camera.PictureCallback rawCallback = new Camera.PictureCallback() {
     public void onPictureTaken(byte[] data, Camera camera) {
+      // does nothing at the moment but's necessary apparently?
     }
   };
   Camera.PictureCallback jpegCallback = new Camera.PictureCallback() {
@@ -179,21 +179,32 @@ public class MeatspaceActivity extends Activity {
 
   public class SendMessageActivity implements OnTaskCompleted {
     public void onTaskCompleted () {
-        if (photocount == 0) {
-          EditText editText = (EditText) findViewById(R.id.edit_message);
-          String messageText = editText.getText().toString();
-          JSONObject message = new JSONObject();
-          try {
-            message.put("message", messageText);
-            if (socket != null) {
-              socket.emit("message", message);
-            }
-          } catch (JSONException e) {
-            throw Throwables.propagate(e);
-          }
-        }
+      photocount--;
+      if (photocount == 0) {
+        sendMessage();
+      } else {
+        camera.takePicture(shutterCallback, rawCallback, jpegCallback);
+      }
+
     }
 
+  }
+  private static String encodeTobase64(Bitmap image)
+  {
+    Bitmap immagex=image;
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    immagex.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+    byte[] b = baos.toByteArray();
+    String imageEncoded = Base64.encodeToString(b, Base64.DEFAULT);
+
+    Log.e("LOOK", imageEncoded);
+    return imageEncoded;
+  }
+
+  public static Bitmap decodeBase64(byte[] input)
+  {
+    byte[] decodedByte = Base64.decode(input, 0);
+    return BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.length);
   }
 
   private class SaveImageTask extends AsyncTask<byte[], Void, Void> {
@@ -203,27 +214,15 @@ public class MeatspaceActivity extends Activity {
       this.listener = listener;
     }
 
+
+
     @Override
     protected Void doInBackground(byte[]... data) {
       FileOutputStream outStream = null;
-// Write to downloadCache
-      try {
-        File sdCard = Environment.getDownloadCacheDirectory();
-        File dir = new File (sdCard.getAbsolutePath() + "/meattmp");
-        dir.mkdirs();
-        String fileName = String.format("%d.jpg", System.currentTimeMillis());
-        File outFile = new File(dir, fileName);
-        outStream = new FileOutputStream(outFile);
-        outStream.write(data[0]);
-        outStream.flush();
-        outStream.close();
-//        refreshGallery(outFile);
-      } catch (FileNotFoundException e) {
-        e.printStackTrace();
-      } catch (IOException e) {
-        e.printStackTrace();
-      } finally {
-      }
+      Bitmap ogImage = BitmapFactory.decodeByteArray(data[0], 0, data[0].length);
+      Bitmap image = Bitmap.createScaledBitmap(ogImage, 200, 150, false);
+      vid.add(encodeTobase64(image));
+
       listener.onTaskCompleted();
 
       return null;
@@ -231,14 +230,33 @@ public class MeatspaceActivity extends Activity {
 
   }
 
-  public void startMessage () {
-    while (photocount > 0) {
-      photocount--;
+  public void startMessage (View view) {
       camera.takePicture(shutterCallback, rawCallback, jpegCallback);
-    }
   }
 
 
+
+  private void sendMessage() {
+    EditText editText = (EditText) findViewById(R.id.edit_message);
+    String messageText = editText.getText().toString();
+    JSONObject message = new JSONObject();
+    try {
+      message.put("message", messageText);
+      message.put("fingerprint", "fritzieee");
+      message.put("media", vid);
+      if (socket != null) {
+        socket.emit("message", message);
+        cleanUp();
+      }
+    } catch (JSONException e) {
+      throw Throwables.propagate(e);
+    }
+  }
+
+  private void cleanUp () {
+    vid.clear();
+    photocount = 9;
+  }
 
 
 }
