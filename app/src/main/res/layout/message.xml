@@ -12,5 +12,9 @@
     android:id="@+id/MessageText"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+      android:paddingLeft="4dp"
+      android:paddingRight="4dp"
+      android:paddingTop="4dp"
+      android:paddingBottom="4dp"
     tools:text="Oh hi how do I use this app are there multiple channels where are all the dicks"/>
 </LinearLayout>

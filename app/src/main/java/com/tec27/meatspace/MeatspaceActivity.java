@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.EditText;
 import android.widget.ListView;
 
 import com.github.nkzawa.emitter.Emitter;
@@ -38,7 +40,7 @@ public class MeatspaceActivity extends Activity {
     chatList.setAdapter(messageAdapter);
 
     try {
-      socket = IO.socket("https://chat.meatspac.es");
+      socket = IO.socket("http://192.168.1.22:3000");
     } catch (URISyntaxException ex) {
       throw Throwables.propagate(ex);
     }
@@ -47,7 +49,7 @@ public class MeatspaceActivity extends Activity {
       @Override
       public void call(Object... args) {
         Log.d("tec27", "connected!");
-        socket.emit("join", "webm");
+        socket.emit("join", "mp4");
       }
     }).on("message", new Emitter.Listener() {
       @Override
@@ -83,4 +85,19 @@ public class MeatspaceActivity extends Activity {
     }
     return super.onOptionsItemSelected(item);
   }
+
+    public void sendMessage (View view) {
+        EditText editText = (EditText) findViewById(R.id.edit_message);
+        String messageText = editText.getText().toString();
+        JSONObject message = new JSONObject();
+        try {
+            message.put("message", messageText);
+            if (socket != null) {
+                socket.emit("message", message);
+            }
+        } catch (JSONException e) {
+            throw Throwables.propagate(e);
+        }
+
+    }
 }
