@@ -1,6 +1,8 @@
 package com.tec27.meatspace;
 
 import android.app.Activity;
+import android.content.Context;
+import android.hardware.Camera;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -8,6 +10,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.github.nkzawa.emitter.Emitter;
 import com.github.nkzawa.socketio.client.IO;
@@ -29,10 +32,13 @@ public class MeatspaceActivity extends Activity {
   private ListView chatList;
   private MessageAdapter messageAdapter;
   private Socket socket;
+  private Camera camera;
+  private Context ctx;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    ctx = this;
     setContentView(R.layout.meatspace_activity);
 
     chatList = (ListView) findViewById(R.id.ChatList);
@@ -85,6 +91,35 @@ public class MeatspaceActivity extends Activity {
     }
     return super.onOptionsItemSelected(item);
   }
+
+  @Override
+  protected void onResume() {
+      super.onResume();
+      int numCams= Camera.getNumberOfCameras();
+
+      if (numCams > 0) {
+          try {
+              releaseCamera();
+              Camera.CameraInfo info = new Camera.CameraInfo();
+              Camera.getCameraInfo(0, info);
+              if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                camera = Camera.open(0);
+              } else if (numCams > 1) {
+                  camera = Camera.open(1);
+              }
+              camera.startPreview();
+          } catch (RuntimeException e) {
+              Toast.makeText(ctx, "Whoopsie camera broke", Toast.LENGTH_LONG).show();
+          }
+      }
+  }
+
+    private void releaseCamera () {
+        if (camera != null) {
+            camera.release();
+            camera = null;
+        }
+    }
 
     public void sendMessage (View view) {
         EditText editText = (EditText) findViewById(R.id.edit_message);
