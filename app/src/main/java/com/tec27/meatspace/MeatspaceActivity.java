@@ -3,7 +3,9 @@ package com.tec27.meatspace;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.Camera;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -28,6 +30,10 @@ import android.widget.FrameLayout;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.URISyntaxException;
 
 
@@ -40,6 +46,7 @@ public class MeatspaceActivity extends Activity {
   private Camera camera;
   private Context ctx;
   private Preview preview;
+  private int photocount;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -51,16 +58,17 @@ public class MeatspaceActivity extends Activity {
     messageAdapter = new MessageAdapter(this);
     chatList.setAdapter(messageAdapter);
 
+    photocount = 10;
     preview = new Preview(this, (SurfaceView)findViewById(R.id.surfaceView));
-    preview.setLayoutParams(new GridLayout.LayoutParams(GridLayout.LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+//    preview.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     ((RelativeLayout) findViewById(R.id.layout)).addView(preview);
-    preview.setKeepScreenOn(true);
-    preview.setOnClickListener(new View.OnClickListener() {
-        @Override
-        public void onClick(View arg0) {
-            camera.takePicture(shutterCallback, rawCallback, jpegCallback);
-        }
-    });
+//    preview.setKeepScreenOn(true);
+//    preview.setOnClickListener(new View.OnClickListener() {
+//        @Override
+//        public void onClick(View arg0) {
+//            camera.takePicture(shutterCallback, rawCallback, jpegCallback);
+//        }
+//    });
 
     try {
       socket = IO.socket("http://192.168.1.22:3000");
@@ -111,45 +119,126 @@ public class MeatspaceActivity extends Activity {
 
   @Override
   protected void onResume() {
-      super.onResume();
-      int numCams= Camera.getNumberOfCameras();
+    super.onResume();
+    int numCams= Camera.getNumberOfCameras();
 
-      if (numCams > 0) {
-          try {
-              releaseCamera();
-              Camera.CameraInfo info = new Camera.CameraInfo();
-              Camera.getCameraInfo(0, info);
-              if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                camera = Camera.open(0);
-              } else if (numCams > 1) {
-                  camera = Camera.open(1);
-              }
-              camera.startPreview();
-          } catch (RuntimeException e) {
-              Toast.makeText(ctx, "Whoopsie camera brokesies", Toast.LENGTH_LONG).show();
-          }
+    if (numCams > 0) {
+      try {
+        releaseCamera();
+        Camera.CameraInfo info = new Camera.CameraInfo();
+        Camera.getCameraInfo(0, info);
+        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+          camera = Camera.open(0);
+        } else if (numCams > 1) {
+          camera = Camera.open(1);
+        }
+        preview.setCameraDisplayOrientation(this, 1, camera);
+        camera.startPreview();
+        preview.setCamera(camera);
+      } catch (RuntimeException e) {
+        Toast.makeText(ctx, "Whoopsie camera brokesies", Toast.LENGTH_LONG).show();
       }
+    }
   }
 
-    private void releaseCamera () {
-        if (camera != null) {
-            camera.release();
-            camera = null;
-        }
-    }
+  @Override
+  protected void onPause() {
+    releaseCamera();
+    super.onPause();
+  }
 
-    public void sendMessage (View view) {
-        EditText editText = (EditText) findViewById(R.id.edit_message);
-        String messageText = editText.getText().toString();
-        JSONObject message = new JSONObject();
-        try {
+  private void releaseCamera () {
+    if (camera != null) {
+      camera.stopPreview();
+      preview.setCamera(null);
+      camera.release();
+      camera = null;
+    }
+  }
+
+
+
+  Camera.ShutterCallback shutterCallback = new Camera.ShutterCallback() {
+    public void onShutter() {
+    }
+  };
+  Camera.PictureCallback rawCallback = new Camera.PictureCallback() {
+    public void onPictureTaken(byte[] data, Camera camera) {
+    }
+  };
+  Camera.PictureCallback jpegCallback = new Camera.PictureCallback() {
+    public void onPictureTaken(byte[] data, Camera camera) {
+      SaveImageTask saveImage = new SaveImageTask();
+      new SaveImageTask().execute(data);
+    }
+  };
+
+  public interface OnTaskCompleted{
+    void onTaskCompleted();
+  }
+
+  public class SendMessageActivity implements OnTaskCompleted {
+    public void onTaskCompleted () {
+        if (photocount == 0) {
+          EditText editText = (EditText) findViewById(R.id.edit_message);
+          String messageText = editText.getText().toString();
+          JSONObject message = new JSONObject();
+          try {
             message.put("message", messageText);
             if (socket != null) {
-                socket.emit("message", message);
+              socket.emit("message", message);
             }
-        } catch (JSONException e) {
+          } catch (JSONException e) {
             throw Throwables.propagate(e);
+          }
         }
-
     }
+
+  }
+
+  private class SaveImageTask extends AsyncTask<byte[], Void, Void> {
+    private OnTaskCompleted listener;
+
+    public void SendMessageTask(OnTaskCompleted listener) {
+      this.listener = listener;
+    }
+
+    @Override
+    protected Void doInBackground(byte[]... data) {
+      FileOutputStream outStream = null;
+// Write to downloadCache
+      try {
+        File sdCard = Environment.getDownloadCacheDirectory();
+        File dir = new File (sdCard.getAbsolutePath() + "/meattmp");
+        dir.mkdirs();
+        String fileName = String.format("%d.jpg", System.currentTimeMillis());
+        File outFile = new File(dir, fileName);
+        outStream = new FileOutputStream(outFile);
+        outStream.write(data[0]);
+        outStream.flush();
+        outStream.close();
+//        refreshGallery(outFile);
+      } catch (FileNotFoundException e) {
+        e.printStackTrace();
+      } catch (IOException e) {
+        e.printStackTrace();
+      } finally {
+      }
+      listener.onTaskCompleted();
+
+      return null;
+    }
+
+  }
+
+  public void startMessage () {
+    while (photocount > 0) {
+      photocount--;
+      camera.takePicture(shutterCallback, rawCallback, jpegCallback);
+    }
+  }
+
+
+
+
 }

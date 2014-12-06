@@ -36,5 +36,5 @@
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
         android:id="@+id/button2"
-        android:onClick="sendMessage"/>
+        android:onClick="startMessage"/>
 </RelativeLayout>
